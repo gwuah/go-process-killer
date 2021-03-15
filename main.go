@@ -1,7 +1,8 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"os"
 
 	ps "github.com/keybase/go-ps"
 
@@ -21,7 +22,6 @@ func isGo(pr ps.Process) (ok bool, err error) {
 }
 
 func getGolangProcesses() ([]ps.Process, []error) {
-
 	var (
 		errGroup  []error
 		processes []ps.Process
@@ -46,15 +46,49 @@ func getGolangProcesses() ([]ps.Process, []error) {
 }
 
 func main() {
+
+	whitelist := map[string]bool{
+		"gopls": true,
+		"go":    true,
+	}
+
 	processes, errs := getGolangProcesses()
+
 	if len(errs) > 0 {
 		// you want to handle errors here.
-		// the most common error you'll see are :
+		// the most common errors you'll see are :
 		// - "not a Go executable" & "unrecognized executable format"
-		// i guess those can be filtered out
+		// i guess those can be filtered out cos they're not really errors
 	}
 
 	for _, process := range processes {
-		fmt.Println(process)
+		// a whitelist of programs i don't want to kill
+		// feel free to modify it (at your own risk)
+		_, ok := whitelist[process.Executable()]
+		if ok {
+			continue
+		}
+
+		// if this isn't obvious, terminating the process running this program is a bit conter-intuitive.
+		// if you really want to stay true to the cause, you can terminate yourself
+		// when you're done terminating everybody else. (after the for-loop) 😏
+		if os.Getpid() == process.Pid() {
+			continue
+		}
+
+		// there were just soo many ways to kill a process, so i decided to go with this approach.
+		// it looks clumsy to me though, but it works fine.
+		os_process, err := os.FindProcess(process.Pid())
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		if err = os_process.Signal(os.Kill); err != nil {
+			log.Println(err)
+			continue
+		}
 	}
+
+	log.Println("extermination complete.")
 }
